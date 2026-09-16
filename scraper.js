@@ -88,7 +88,9 @@ async function scrape() {
 
   const doc = new JSDOM(html).window.document;
   const header = doc.querySelector(".fic-header");
-  const cover = header.querySelector(".cover-art > img").getAttribute("src");
+  const cover = header
+    .querySelector(".cover-art-container > img")
+    .getAttribute("src");
   const link = header.querySelector(".fic-buttons > a").getAttribute("href");
   const title = header.getElementsByTagName("h1")[0].textContent.trim();
   const author = header
@@ -98,15 +100,31 @@ async function scrape() {
   const description = doc.querySelector(
     ".description > .hidden-content",
   ).innerHTML;
-  const chapters = await getChapter(link);
-  
+
+  const option = {
+    title: title,
+    author: author,
+    publisher: "Royal Road",
+    cover: cover,
+    content: [],
+  };
+  option.content.push({
+    title: "summary",
+    data: description,
+  });
+  let chapter = await getChapter(link);
+  do {
+    option.content.push({
+      title: chapter.title,
+      data: chapter.body,
+    });
+    chapter = await getChapter(chapter.next);
+  } while (chapter.next);
+
   const book = new Epub(option, `${title.replaceAll(" ", "_")}.epub`);
-  book;
-  writeFile(
-    `${title.replaceAll(" ", "_")}.html`,
-    `<h1>${title}</h1>\n<h3>by: ${author}</h3><br/>\n<div>${description}</div><br/>\n${chapters}`,
-    "utf8",
-  );
+  book.promise.then(() => {
+    console.log("Ebook gerado com sucesso!");
+  });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
