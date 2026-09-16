@@ -1,0 +1,17 @@
+{
+  "name": "html-scrapper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Baixa o conteúdo de uma URL e salva em um arquivo HTML.",
+  "type": "module",
+  "scripts": {
+    "scrape": "node scraper.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "epub-gen": "^0.1.0",
+    "jsdom": "^24.1.0"
+  }
+}
