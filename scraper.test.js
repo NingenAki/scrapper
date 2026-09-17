@@ -1,36 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
 
-import { getInnerHtmlByClass } from './scraper.js';
+function runScraper(args) {
+  return spawnSync(process.execPath, [resolve('scraper.js'), ...args], {
+    cwd: resolve('.'),
+    encoding: 'utf8',
+  });
+}
 
-test('extracts inner HTML from the first matching class element', () => {
-  const html = `
-    <div class="card"><p>Hello</p><span>World</span></div>
-    <div class="card"><strong>Again</strong></div>
-  `;
+test('returns an error when no URL is provided', () => {
+  const result = runScraper([]);
 
-  const result = getInnerHtmlByClass(html, 'card');
-
-  assert.equal(result, '<p>Hello</p><span>World</span>');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /A URL deve usar o protocolo http ou https\./);
 });
 
-test('returns null when no class matches', () => {
-  const html = '<div class="title">Hello</div>';
+test('returns an error for malformed URLs', () => {
+  const result = runScraper(['not a url']);
 
-  const result = getInnerHtmlByClass(html, 'card');
-
-  assert.equal(result, null);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /A URL deve usar o protocolo http ou https\./);
 });
 
-test('extracts the href from the first matching link', () => {
-  const html = `
-    <nav>
-      <a class="chapter-link" href="https://example.com/chapter-1">Chapter 1</a>
-      <a href="https://example.com/chapter-2">Chapter 2</a>
-    </nav>
-  `;
+test('returns an error for non-http protocols', () => {
+  const result = runScraper(['ftp://example.com']);
 
-  const result = getUrlFromLink(html, '.chapter-link');
-
-  assert.equal(result, 'https://example.com/chapter-1');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /A URL deve usar o protocolo http ou https\./);
 });

@@ -5,13 +5,15 @@
   "description": "Baixa o conteúdo de uma URL e salva em um arquivo HTML.",
   "type": "module",
   "scripts": {
-    "scrape": "node scraper.js"
+    "scrape": "node scraper.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
     "epub-gen": "^0.1.0",
+    "fs": "^0.0.1-security",
     "jsdom": "^24.1.0"
   }
 }

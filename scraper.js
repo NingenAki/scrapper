@@ -1,7 +1,5 @@
 #!/usr/bin/env node
-
-import { writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import FileSystem from "fs";
 import { JSDOM } from "jsdom";
 import Epub from "epub-gen";
 const BASE_URL = "https://www.royalroad.com";
@@ -25,7 +23,8 @@ function getURL(path) {
 }
 
 async function getPage(url) {
-  const response = await fetch(url, {
+  const urlObject = getURL(String(url));
+  const response = await fetch(urlObject, {
     headers: {
       "User-Agent": "html-scrapper/1.0",
     },
@@ -42,34 +41,30 @@ async function getPage(url) {
 
 async function getChapter(link) {
   if (link === null) {
-    return "";
+    return null;
   }
 
   const url = getURL(`${BASE_URL}${link}`);
   const html = await getPage(url);
   const doc = new JSDOM(html).window.document;
+  const title = doc.querySelector(".fic-header h1")?.textContent?.trim() ?? "";
+  const navButtons = doc.querySelector(".nav-buttons");
+  const next = navButtons?.getElementsByClassName("btn")?.[1]?.getAttribute("href") ?? null;
   console.log(`Baixando capítulo: ${title}`);
-  const next = doc
-    .querySelector(".nav-buttons")
-    .getElementsByClassName("btn")[1]
-    .getAttribute("href");
-  const title = doc.querySelector(".fic-header h1").textContent.trim();
   const content = doc.querySelector(".chapter-content");
-  const body = content.getElementsByTagName("p").length
-    ? [...content.getElementsByTagName("p")].reduce((acc, p) => {
-        const span = p.querySelector("span")?.[0];
-        if (span) {
-          p = p.removeChild(span);
-        }
+  const body = [...content.childNodes].reduce((acc, child) => {
+    if (child.tagName === "SPAN") {
+      console.log(child.innerText);
+      return acc;
+    }
 
-        return `${acc}<p>${p.innerHTML}</p>\n`;
-      }, "")
-    : content.innerHTML;
+    return child.innerHTML ? `${acc}<p>${child.innerHTML}</p>` : acc;
+  }, "");
   return { title, body, next };
 }
 
-function parseArguments() {
-  const [urlArgument, outputArgument = "output.html"] = process.argv.slice(2);
+function parseArguments(argv = process.argv.slice(2)) {
+  const [urlArgument] = argv;
 
   if (!urlArgument) {
     printUsage();
@@ -77,20 +72,19 @@ function parseArguments() {
     return null;
   }
 
-  return { url: getURL(urlArgument), outputPath: resolve(outputArgument) };
+  return getURL(urlArgument);
 }
 
 async function scrape() {
-  const arguments_ = parseArguments();
-  if (!arguments_) return;
+  const url = parseArguments();
+  if (!url) return;
 
-  const html = await getPage(arguments_.url);
+  const html = await getPage(url);
 
   const doc = new JSDOM(html).window.document;
   const header = doc.querySelector(".fic-header");
   const cover = header
-    .querySelector(".cover-art-container > img")
-    .getAttribute("src");
+    .querySelector(".cover-art-container > img")?.getAttribute("src");
   const link = header.querySelector(".fic-buttons > a").getAttribute("href");
   const title = header.getElementsByTagName("h1")[0].textContent.trim();
   const author = header
@@ -101,17 +95,26 @@ async function scrape() {
     ".description > .hidden-content",
   ).innerHTML;
 
+  if (cover) {
+    const img = await fetch(cover);
+    const coverBlob = await img.blob();
+    const coverArrayBuffer = await coverBlob.arrayBuffer();
+    const coverBuffer = Buffer.from(coverArrayBuffer);
+    FileSystem.writeFileSync("cover.jpg", coverBuffer);
+  }
+
   const option = {
     title: title,
     author: author,
     publisher: "Royal Road",
-    cover: cover,
-    content: [],
+    cover: cover ? "cover.jpg" : undefined,
+    content: [{
+      title: "Summary",
+      data: description,
+      beforeToc: true,
+      excludeFromToc: true,
+    }],
   };
-  option.content.push({
-    title: "summary",
-    data: description,
-  });
   let chapter = await getChapter(link);
   do {
     option.content.push({
@@ -119,7 +122,7 @@ async function scrape() {
       data: chapter.body,
     });
     chapter = await getChapter(chapter.next);
-  } while (chapter.next);
+  } while (chapter);
 
   const book = new Epub(option, `${title.replaceAll(" ", "_")}.epub`);
   book.promise.then(() => {
@@ -127,9 +130,7 @@ async function scrape() {
   });
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  scrape().catch((error) => {
-    console.error(`Erro: ${error.message}`);
-    process.exitCode = 1;
-  });
-}
+scrape().catch((error) => {
+  console.error(`Erro: ${error.message}`);
+  process.exitCode = 1;
+});
