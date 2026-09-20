@@ -95,19 +95,22 @@ async function scrape() {
     ".description > .hidden-content",
   ).innerHTML;
 
+  FileSystem.mkdirSync("books", { recursive: true });
   if (cover) {
+
     const img = await fetch(cover);
     const coverBlob = await img.blob();
     const coverArrayBuffer = await coverBlob.arrayBuffer();
     const coverBuffer = Buffer.from(coverArrayBuffer);
-    FileSystem.writeFileSync("cover.jpg", coverBuffer);
+
+    FileSystem.writeFileSync("books/cover.jpg", coverBuffer);
   }
 
   const option = {
     title: title,
     author: author,
     publisher: "Royal Road",
-    cover: cover ? "cover.jpg" : undefined,
+    cover: cover ? "books/cover.jpg" : undefined,
     content: [{
       title: "Summary",
       data: description,
@@ -124,7 +127,7 @@ async function scrape() {
     chapter = await getChapter(chapter.next);
   } while (chapter);
 
-  const book = new Epub(option, `${title.replaceAll(" ", "_")}.epub`);
+  const book = new Epub(option, `books/${title.replaceAll(" ", "_")}.epub`);
   book.promise.then(() => {
     console.log("Ebook gerado com sucesso!");
   });
